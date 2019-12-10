@@ -1,0 +1,27 @@
+let
+    Source = (TenantId as text, ClientId as text, Username as text, Password as text, ConfigMgrServiceURI as text) => let 
+      scope = "https://" & ConfigMgrServiceURI & "/user_impersonation",
+      authority = "https://login.microsoftonline.com/" & TenantId & "/oauth2/v2.0/token",
+    
+      GetJson = Web.Contents(
+        authority,
+        [
+          Headers = [
+            #"Content-Type"="application/x-www-form-urlencoded",
+            #"Accept" = "application/json"
+          ],
+          Content = Text.ToBinary(Uri.BuildQueryString([
+            client_id = ClientId,
+            grant_type = "password",
+            username = Username,
+            password = Password,
+            scope = scope
+          ]))
+        ]),
+      FormatAsJson = Json.Document(GetJson),
+      auth_token_table = Record.ToTable(FormatAsJson),
+      auth_token = auth_token_table{4}[Value]
+    in
+    auth_token
+in
+    Source
