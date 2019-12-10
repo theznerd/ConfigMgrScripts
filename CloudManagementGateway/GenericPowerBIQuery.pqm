@@ -1,0 +1,50 @@
+let
+  CloudManagementGateway = "https://znerdcmg.znerd.dev", // Change this to your CMG address
+  Endpoint = "wmi", // Change this to wmi or v1.0 depending
+  Query = "SMS_R_User", // Change this to your query INCLUDING filters e.g. SMS_R_User?$filter=
+  TenantId = "GUID", // Change this to your TenantId
+  ClientId = "GUID", // Change this to your ClientId for your Application Registration
+  Username = "user@domain.com", // Change this to your Cloud Management User
+  Password = "PASSWORD", // Change this to your Cloud Management  
+
+  // ** You should not need to change anything below this line ** \\ 
+  Scope = "https://ConfigMgrService/user_impersonation",
+  Authority = "https://login.microsoftonline.com/" & TenantId & "/oauth2/v2.0/token",
+  AdminService = "/CCM_Proxy_ServerAuth/72057594037927941/AdminService/" & Endpoint & "/" & Query,
+  AdminURI = CloudManagementGateway & AdminService,
+
+  auth_token_result = Web.Contents(
+    Authority,
+    [
+      Headers = [
+        #"Content-Type"="application/x-www-form-urlencoded",
+        #"Accept" = "application/json"
+      ],
+      Content = Text.ToBinary(Uri.BuildQueryString([
+        client_id = ClientId,
+        grant_type = "password",
+        username = Username,
+        password = Password,
+        scope = Scope
+      ]))
+    ]),
+  auth_token_json = Json.Document(auth_token_result),
+  auth_token_table = Record.ToTable(auth_token_json),
+  auth_token = auth_token_table{4}[Value],
+
+  QueryResults = Web.Contents(
+    AdminURI,
+    [
+    Headers = [
+        #"Content-Type"="application/json",
+        #"Authorization"="Bearer " & auth_token
+    ]
+    ]),
+  Query_Json = Json.Document(QueryResults),
+  Query_Table = Record.ToTable(Query_Json),
+  Query_Records = Query_Table[Value]{1},
+  Query_Records_Table = Table.FromList(Query_Records, Splitter.SplitByNothing(), null, null, ExtraValues.Error),
+  Query_Columns = Record.ToTable(Query_Records{0})[Name],
+  Expanded_Query = Table.ExpandRecordColumn(Query_Records_Table, "Column1", Query_Columns)
+in
+Expanded_Query
